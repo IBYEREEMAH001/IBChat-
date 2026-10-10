@@ -1178,4 +1178,31 @@ window.tfaRun=(c,ok,no)=>{const m=[];if(c.phone)m.push(["phone",c.phone]);if(c.e
  s1()};
 window.tfa=(o,u,go)=>tfaRun({phone:o.me&&o.me.phone,email:o.me&&o.me.email},go,()=>toast("Sign-in cancelled"));
 })();
+/* ===== Clear Skip button + 6-month account term ===== */
+(function(){
+["rems","revsk"].forEach(i=>{const e=$(i);if(e)e.style.cssText="display:block;width:100%;margin-top:10px;padding:13px;border:1.5px solid var(--gold);border-radius:26px;color:var(--gold);background:none;font-size:16px;font-weight:700"});
+$("rems").textContent="Skip for now";
+const term=()=>{const d=new Date();d.setMonth(d.getMonth()+6);return d.getTime()},fd=t=>new Date(t).toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"});
+const wipe=u=>{["ib_db_","ib_hb_","ib_in_","ib_st_"].forEach(k=>{try{localStorage.removeItem(k+u)}catch(e){}});dir=dir.filter(d=>d.u!=u);sv("ib_dir",dir);try{localStorage.setItem("ib_expd","1")}catch(e){}};const gone=t=>{const u=db.me.u,m="Your account expired on "+fd(t)+" and its chats were removed. Register again, then restore your backup.";logout();wipe(u);setTimeout(()=>{const e=$("er");if(e)e.textContent=m;toast(m)},60)};
+const chk=()=>{if(db&&db.me){if(!db.exp){db.exp=term();S()}else if(Date.now()>db.exp){gone(db.exp);return false}}return true};
+const _la=loginAs;loginAs=function(u){const o=ld("ib_db_"+u,null);if(o&&o.exp&&Date.now()>o.exp){wipe(u);$("er").textContent="This account expired on "+fd(o.exp)+" and its chats were removed. Register again, then restore your backup.";return true}return _la.apply(this,arguments)};
+const _st=start;start=function(){if(!chk())return;return _st.apply(this,arguments)};
+const _f=finish;finish=async function(){const r=await _f.apply(this,arguments);if(db&&db.me&&!db.exp){db.exp=term();S()}return r};
+const _sx=sx;sx=function(){_sx.apply(this,arguments);if(sPage=="acc"&&db&&db.exp){const n=Math.max(0,Math.ceil((db.exp-Date.now())/864e5));$("sbody").insertAdjacentHTML("afterbegin",`<div class="sec">ACCOUNT TERM</div><div class="sx"><span>📅</span><div>Valid until ${fd(db.exp)}<small>${n} day${n==1?"":"s"} left</small></div></div>`)}};
+setInterval(chk,36e5);if(db)chk();
+})();
+/* ===== Chat memory for the 6-month term: backup reminders and restore ===== */
+(function(){
+const fd=t=>new Date(t).toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"});
+window.backupNow=async()=>{if(!db)return;const t=JSON.stringify({ibchat:1,at:Date.now(),u:db.me.u,chats:db.chats,calls:db.calls||[],notes:db.notes,todos:db.todos,lists:db.lists||[]});let ok=0;
+ try{if(navigator.share){await navigator.share({title:"IBChat backup",text:t});ok=1}}catch(e){}
+ if(!ok)try{await navigator.clipboard.writeText(t);ok=1}catch(e){}
+ if(ok){db.lastBk=Date.now();S();toast("Backup ready. Keep it somewhere safe, like your notes or a message to yourself.")}else toast("Could not create the backup")};
+const bx=document.createElement("div");bx.id="bkm";bx.className="fs";bx.style.cssText="background:#000c;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:70";document.body.appendChild(bx);
+function remind(){if(!db||!db.exp)return;const n=Math.ceil((db.exp-Date.now())/864e5);if(n>30||n<0)return;const k=new Date().toDateString();if(db.bkn==k)return;db.bkn=k;S();
+ bx.innerHTML=`<div style="background:#16253b;border-radius:16px;padding:22px;max-width:340px;color:#fff"><div style="font-size:34px">⏳</div><h3>Account expires in ${n} day${n==1?"":"s"}</h3><p style="font-size:14px;color:#9fb0c6">Your chats are kept during your 6-month term. When it ends they are erased. Back up now so you can restore them in your new account.</p><button class="rnext" id="bkg" style="width:100%;margin:6px 0">Back up now</button><button id="bkl" style="background:none;border:0;color:#9fb0c6;padding:8px">Later</button></div>`;bx.classList.add("show");$("bkg").onclick=()=>{bx.classList.remove("show");backupNow()};$("bkl").onclick=()=>bx.classList.remove("show")}
+setTimeout(remind,2500);setInterval(remind,36e5);
+const _sx=sx;sx=function(){_sx.apply(this,arguments);if(sPage=="acc"&&db)$("sbody").insertAdjacentHTML("afterbegin",`<div class="sec">CHAT MEMORY</div><div class="sx" onclick="backupNow()"><span>☁</span><div>Back up chats now<small>Last backup: ${db.lastBk?fd(db.lastBk):"never"} · chats are erased when your term ends</small></div></div><div class="sx" onclick="restore()"><span>📲</span><div>Restore chats<small>Paste a backup to bring your chats back</small></div></div>`)};
+const _f=finish;finish=async function(){const r=await _f.apply(this,arguments);try{if(db&&localStorage.getItem("ib_expd")){localStorage.removeItem("ib_expd");setTimeout(restore,900)}}catch(e){}return r};
+})();
 </script></body></html>
