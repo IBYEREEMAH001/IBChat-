@@ -608,7 +608,7 @@ function regAcc(){try{regShow("rs1");nxState();REG.pic="";REG.pp="";REG.pe="";RE
 function logout(){try{localStorage.removeItem("ib_me")}catch(e){}S();db=null;cur=null;$("chat").classList.remove("open");$("set").classList.remove("open");$("un").value="";regAcc();if(window.regStep)regStep(1);$("reg").classList.add("show")}
 function loginAs(u){const d=dir.find(x=>x.u==u&&x.real);if(!d)return false;S();
  const o=ld("ib_db_"+u,null)||{me:{u,name:d.n,bio:""},chats:[],calls:[]};
- const fin=()=>{db=o;sv("ib_me",u);cur=null;$("chat").classList.remove("open");$("set").classList.remove("open");sPage="";start();if(db.set&&db.set.sn)toast("Signed in as @"+u)};
+ const fin=()=>tfa(o,u,()=>{db=o;sv("ib_me",u);cur=null;$("chat").classList.remove("open");$("set").classList.remove("open");sPage="";start();if(db.set&&db.set.sn)toast("Signed in as @"+u)});
  const step2=async()=>{if(o.pin&&o.set&&o.set.ts){if(o.bio&&await bioAuth(o.bio))return fin();ask("PIN for @"+u,"PIN",async v=>{if(await hp(v,o.salt||u)==o.pin)fin();else toast("Wrong PIN")},"","password")}else fin()};
  if(o.pw)ask("Password for @"+u,"Password",async v=>{if(await hp(v,o.salt||u)==o.pw)step2();else toast("Wrong password")},"","password");else step2();return true}
 $("lg").onclick=()=>{if(!loginAs(tk()))$("er").textContent="No account with that username on this device"};
@@ -967,7 +967,7 @@ function rtcEnd(){if(PEER)sig(PEER,{k:"end"});if(PC){try{PC.close()}catch(e){}PC
 function remoteEnd(){if(PC){try{PC.close()}catch(e){}PC=null}PEER=null;PEND=[];window._ct=0;$("en").click()}
 $("ica").onclick=acceptCall;$("icd").onclick=declineCall;
 /* sign up / log in against the server when it is there */
-async function netAuth(path,body){try{const r=await api(path,body);TOKEN=r.token;sv("ib_tok",TOKEN);const u=r.me.u;db=ld("ib_db_"+u,null)||{me:{u,name:r.me.n,bio:"",phone:r.phone},chats:[],calls:[]};db.me.u=u;db.me.name=r.me.n||db.me.name;db.me.phone=r.phone||db.me.phone;sv("ib_me",u);cur=null;start();netStart()}catch(e){$("er").textContent=e.message}}
+async function netAuth(path,body){try{const r=await api(path,body);if(path=="/api/login"){TOKEN=r.token;const lc=ld("ib_db_"+r.me.u,null)||{me:{}};const okk=await new Promise(res=>tfaRun({phone:r.phone||lc.me.phone,email:r.email||lc.me.email},()=>res(1),()=>res(0)));if(!okk){TOKEN="";$("er").textContent="Verification cancelled";return}}TOKEN=r.token;sv("ib_tok",TOKEN);const u=r.me.u;db=ld("ib_db_"+u,null)||{me:{u,name:r.me.n,bio:"",phone:r.phone},chats:[],calls:[]};db.me.u=u;db.me.name=r.me.n||db.me.name;db.me.phone=r.phone||db.me.phone;sv("ib_me",u);cur=null;start();netStart()}catch(e){$("er").textContent=e.message}}
 const goOld=$("go").onclick,lgOld=$("lg").onclick;
 $("go").onclick=()=>{if(!NET)return goOld();$("er").textContent="";netAuth("/api/register",{u:tk(),name:$("dn").value.trim()||tk(),phone:fullPhone($("ph").value),pw:$("pw").value})};
 $("lg").onclick=()=>{if(!NET)return lgOld();$("er").textContent="";netAuth("/api/login",{u:tk(),pw:$("pw").value})};
@@ -1157,5 +1157,25 @@ $("rvc").oninput=e=>{if(NET)return _rc(e);const v=e.target.value=e.target.value.
 $("remn").onclick=()=>{if(NET)return _rn();REG.email=$("rem").value.trim().toLowerCase();REG.pe="";le()};
 $("revc").oninput=e=>{if(NET)return _re(e);const v=e.target.value=e.target.value.replace(/\D/g,"");if(v.length<6)return;if(v==LE){REG.pe="local";finish()}else{$("rever").textContent="Wrong code. Try again.";e.target.value=""}};
 const _f=finish;finish=function(){if(!REG.pp||!REG.pe||!REG.email){regShow("rs1");$("er1").textContent="Verify both your phone number and your email to create an account";return}return _f.apply(this,arguments)};
+})();
+/* ===== Two-step verification at login (OTP to phone or email) ===== */
+(function(){
+const gen=()=>String(Math.floor(100000+Math.random()*900000));
+const mk=m=>m.includes("@")?m.replace(/^(.).*(@.*)$/,"$1***$2"):m.slice(0,-4).replace(/\d/g,"•")+m.slice(-4);
+const box=document.createElement("div");box.id="tf";box.className="fs";box.style.cssText="background:#000c;align-items:center;justify-content:center;padding:24px;text-align:center;z-index:70";document.body.appendChild(box);
+const close=()=>box.classList.remove("show");
+window.tfaRun=(c,ok,no)=>{const m=[];if(c.phone)m.push(["phone",c.phone]);if(c.email)m.push(["email",c.email]);
+ if(!m.length){toast("Add a phone number or email in Settings to turn on two-step verification");ok();return}
+ let sel,hint="",err="",tries=0,code="";
+ const h=s=>`<div style="background:#16253b;border-radius:16px;padding:22px;max-width:340px;width:100%;color:#fff">${s}</div>`;
+ const q=o=>NET?api("/api/otp/send",o):null;
+ const s1=()=>{box.innerHTML=h(`<div style="font-size:34px">🔐</div><h3>Two-step verification</h3><p style="color:#9fb0c6;font-size:14px">Choose where to send your 6-digit code.</p>${m.map((x,i)=>`<button class="chp" data-k="${i}" style="display:block;width:100%;margin:8px 0;padding:12px">${x[0]=="phone"?"📱":"✉️"} ${esc(mk(x[1]))}</button>`).join("")}<button id="tfx" style="background:none;border:0;color:#9fb0c6;margin-top:8px">Cancel</button>`);box.classList.add("show");box.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>send(m[b.dataset.k]));$("tfx").onclick=()=>{close();no()}};
+ const send=async x=>{sel=x;err="";try{if(NET){const r=await q(x[0]=="phone"?{phone:x[1]}:{email:x[1]});if(!r.verify)throw new Error("Two-step verification isn't set up on the server");hint=r.dev?"Test mode: your code is "+r.dev:""}else{code=gen();hint="Demo mode (no server, nothing is really sent): your code is "+code}s2()}catch(e){s1();toast(e.message)}};
+ const s2=()=>{box.innerHTML=h(`<h3>Enter your code</h3><p style="font-size:14px;color:#9fb0c6">Code sent to ${esc(mk(sel[1]))}</p><input id="tfc" inputmode="numeric" maxlength="6" placeholder="••••••" style="width:100%;text-align:center;font-size:26px;letter-spacing:8px;padding:10px;border-radius:12px;border:0;background:#0b1f3a;color:#fff"><div style="color:#ff6b81;min-height:20px;font-size:13px">${esc(err)}</div><div style="color:#25d366;font-size:13px">${esc(hint)}</div><button id="tfr" style="background:none;border:0;color:#53bdeb;margin:8px">Resend code</button><br><button id="tfb" style="background:none;border:0;color:#9fb0c6">Back</button>`);const i=$("tfc");i.focus();
+  i.oninput=async()=>{i.value=i.value.replace(/\D/g,"");if(i.value.length<6)return;let good=false;try{if(NET){await api("/api/otp/check",sel[0]=="phone"?{phone:sel[1],code:i.value}:{email:sel[1],code:i.value});good=true}else good=i.value==code}catch(e){}
+   if(good){close();ok()}else{tries++;if(tries>=5){close();toast("Too many wrong codes");no();return}err="Wrong code ("+(5-tries)+" tries left)";s2()}};
+  $("tfr").onclick=()=>send(sel);$("tfb").onclick=s1};
+ s1()};
+window.tfa=(o,u,go)=>tfaRun({phone:o.me&&o.me.phone,email:o.me&&o.me.email},go,()=>toast("Sign-in cancelled"));
 })();
 </script></body></html>
