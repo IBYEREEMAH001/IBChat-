@@ -209,7 +209,7 @@ input,button,textarea{font-family:inherit}
 <input id="un" placeholder="@username or phone number" autocapitalize="none" maxlength="20"><input id="dn" placeholder="Your name" maxlength="24"><input id="pw" type="password" placeholder="Password (at least 6 characters)" style="display:none">
 <div id="ra" style="display:flex;gap:8px;flex-wrap:wrap"></div><div class="err" id="er"></div><button id="go" class="rnext" style="margin-top:8px">Next</button><button id="lg" class="rsec">I have an account: log in</button></div>
 <div class="rs" id="rsV" style="display:none"><button class="ic" id="rvb" style="align-self:flex-start"></button><div class="rt">Verify your number</div><p class="rp">Enter the 6-digit code we sent by SMS to <b id="rvph"></b>.</p><input id="rvc" class="rcode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="······"><div class="rp" id="rvdev" style="color:var(--gold)"></div><div class="err" id="rver"></div><span class="rlink" id="rvrs">Resend code</span><span class="rlink" id="rvwn" style="color:var(--mut)">Wrong number?</span></div>
-<div class="rs" id="rsE" style="display:none"><div class="rt">Verify your email</div><p class="rp">Verify your email to finish creating your account. Your email address will not be visible to others.</p><input id="rem" type="email" placeholder="you@gmail.com" autocapitalize="none"><div class="err" id="rer"></div><button class="rnext" id="remn" disabled>Next</button><button class="rsec" id="rems">Skip</button></div>
+<div class="rs" id="rsE" style="display:none"><div class="rt">Add your email</div><p class="rp">Email helps us reach you for login, support or account updates. Your email address will not be visible to others. This step is optional.</p><input id="rem" type="email" placeholder="you@gmail.com" autocapitalize="none"><div class="err" id="rer"></div><button class="rnext" id="remn" disabled>Next</button><button class="rsec" id="rems">Skip</button></div>
 <div class="rs" id="rsEV" style="display:none"><div class="rt">Verify your email</div><p class="rp">Enter the 6-digit code we sent to <b id="revm"></b>. <span class="rlink" id="revwn" style="display:inline">Wrong email?</span></p><input id="revc" class="rcode" inputmode="numeric" maxlength="6" placeholder="······"><div class="rp" id="revdev" style="color:var(--gold)"></div><div class="err" id="rever"></div><span class="rlink" id="revrs">Resend code</span><button class="rsec" id="revsk">Skip</button></div>
 </div></div>
 <div class="v" id="set"><div class="top"><button class="ic" id="sb">←</button><b id="stt" style="flex:1"></b></div><div id="sbody" style="flex:1;overflow-y:auto"></div></div>
@@ -1028,7 +1028,7 @@ const emOk=()=>/^\S+@\S+\.\S+$/.test($("rem").value.trim());
 $("rem").oninput=()=>{$("remn").disabled=!emOk()};
 $("rems").onclick=()=>{REG.email="";REG.pe="";finish()};
 $("remn").onclick=async()=>{REG.email=$("rem").value.trim().toLowerCase();REG.pe="";if(!NET){finish();return}busy("Connecting…");
- try{const r=await api("/api/otp/send",{email:REG.email});busy();if(!r.verify){regShow("rsE");$("rer").textContent="Email verification is not set up on the server.";return}
+ try{const r=await api("/api/otp/send",{email:REG.email});busy();if(!r.verify){REG.email="";finish();return}
   $("revm").textContent=REG.email;$("revc").value="";regShow("rsEV");$("revdev").textContent=r.dev?"Test mode: your code is "+r.dev:"";$("revc").focus();resendTimer($("revrs"),sendEmailAgain)}
  catch(e){busy();$("rer").textContent=e.message}};
 async function sendEmailAgain(){try{const r=await api("/api/otp/send",{email:REG.email});$("revdev").textContent=r.dev?"Test mode: your code is "+r.dev:"";resendTimer($("revrs"),sendEmailAgain)}catch(e){$("rever").textContent=e.message}}
@@ -1148,7 +1148,7 @@ info=function(c){_info(c);
 /* ===== Mandatory phone + email OTP before account creation ===== */
 (function(){
 const gen=()=>String(Math.floor(100000+Math.random()*900000));let LP="",LE="";
-["rems","revsk"].forEach(i=>{const e=$(i);if(e){e.style.display="none";e.onclick=null}});
+["rems","revsk"].forEach(i=>{const e=$(i);if(e){e.style.display="";e.onclick=()=>{REG.email="";REG.pe="";finish()}}});
 const lp=()=>{LP=gen();$("rvph").textContent=REG.phone;$("rvc").value="";regShow("rsV");$("rvdev").textContent="Demo mode (no server): your phone code is "+LP;resendTimer($("rvrs"),lp)};
 const le=()=>{LE=gen();$("revm").textContent=REG.email;$("revc").value="";regShow("rsEV");$("revdev").textContent="Demo mode (no server): your email code is "+LE;resendTimer($("revrs"),le)};
 const _nx=$("nx").onclick,_rc=$("rvc").oninput,_rn=$("remn").onclick,_re=$("revc").oninput;
@@ -1156,7 +1156,7 @@ $("nx").onclick=()=>{if(NET)return _nx();if(!nxState()){$("er1").textContent="En
 $("rvc").oninput=e=>{if(NET)return _rc(e);const v=e.target.value=e.target.value.replace(/\D/g,"");if(v.length<6)return;if(v==LP){REG.pp="local";$("vok2").classList.add("show")}else{$("rver").textContent="Wrong code. Try again.";e.target.value=""}};
 $("remn").onclick=()=>{if(NET)return _rn();REG.email=$("rem").value.trim().toLowerCase();REG.pe="";le()};
 $("revc").oninput=e=>{if(NET)return _re(e);const v=e.target.value=e.target.value.replace(/\D/g,"");if(v.length<6)return;if(v==LE){REG.pe="local";finish()}else{$("rever").textContent="Wrong code. Try again.";e.target.value=""}};
-const _f=finish;finish=function(){if(!REG.pp||!REG.pe||!REG.email){regShow("rs1");$("er1").textContent="Verify both your phone number and your email to create an account";return}return _f.apply(this,arguments)};
+const _f=finish;finish=function(){if(!REG.pp){regShow("rs1");$("er1").textContent="Verify your phone number to create an account";return}if(REG.email&&!REG.pe){REG.email=""}return _f.apply(this,arguments)};
 })();
 /* ===== Two-step verification at login (OTP to phone or email) ===== */
 (function(){
